@@ -18,13 +18,10 @@ NeoPixelBus<NeoRgbFeature, Neo800KbpsMethod> strip(PixelCount, PixelPin);
 // other side effects.
 // for details see wiki linked here https://github.com/Makuna/NeoPixelBus/wiki/ESP8266-NeoMethods
 
-NeoPixelAnimator animations(AnimationChannels); // NeoPixel animation management object
-
-uint16_t green = 0;
-boolean greenUp = true;
+NeoPixelAnimator animations(PixelCount); // NeoPixel animation management object
 
 // what is stored for state is specific to the need, in this case, the colors.
-// basically what ever you need inside the animation update function
+// Basically what ever you need inside the animation update function
 struct MyAnimationState
 {
     RgbColor StartingColor;
@@ -32,7 +29,7 @@ struct MyAnimationState
 };
 
 // one entry per pixel to match the animation timing manager
-MyAnimationState animationState[AnimationChannels];
+MyAnimationState animationState[PixelCount];
 
 void SetRandomSeed()
 {
@@ -49,6 +46,7 @@ void SetRandomSeed()
         delay(1);
     }
 
+    // Serial.println(seed);
     randomSeed(seed);
 }
 
@@ -63,49 +61,29 @@ void BlendAnimUpdate(const AnimationParam &param)
         animationState[param.index].StartingColor,
         animationState[param.index].EndingColor,
         param.progress);
-
     // apply the color to the strip
-    for (uint16_t pixel = 0; pixel < PixelCount; pixel++)
-    {
-        strip.SetPixelColor(pixel, updatedColor);
-    }
+    strip.SetPixelColor(param.index, updatedColor);
 }
 
-void FadeInFadeOutRinseRepeat()
+void PickRandom(float luminance)
 {
-    if (green == 205)
-        greenUp = false;
-    if (green == 0)
-        greenUp = true;
-
-    if (greenUp && green <= 205)
+    // pick random count of pixels to animate
+    uint16_t count = random(PixelCount);
+    while (count > 0)
     {
-        // Fade the green LED up with red at maximum
-        // this will cause the color to fade from red to orange to yellow
-        RgbColor target = RgbColor(255, green++, 0);
-        uint16_t time = 100;
+        // pick a random pixel
+        uint16_t pixel = random(PixelCount);
 
-        animationState[0].StartingColor = strip.GetPixelColor(0);
-        animationState[0].EndingColor = target;
+        // pick random time and random color
+        // we use HslColor object as it allows us to easily pick a color
+        // with the same saturation and luminance
+        uint16_t time = random(700, 1200);
+        animationState[pixel].StartingColor = strip.GetPixelColor(pixel);
+        animationState[pixel].EndingColor = HslColor(random(360) / 360.0f, 1.0f, luminance);
 
-        animations.StartAnimation(0, time, BlendAnimUpdate);
-    }
-    else if (!greenUp && green >= 0)
-    {
-        // Fade the green LED down with red at maximum
-        // this will cause the color to fade from red to orange to yellow
-        RgbColor target = RgbColor(255, green--, 0);
-        uint16_t time = 100;
+        animations.StartAnimation(pixel, time, BlendAnimUpdate);
 
-        animationState[0].StartingColor = strip.GetPixelColor(0);
-        animationState[0].EndingColor = target;
-
-        animations.StartAnimation(0, time, BlendAnimUpdate);
-    }
-    else
-    {
-        // toggle to the next effect state
-        greenUp = !greenUp;
+        count--;
     }
 }
 
@@ -127,8 +105,8 @@ void loop()
     }
     else
     {
-        // no animation runnning, start some
+        // no animations runnning, start some
         //
-        FadeInFadeOutRinseRepeat(); // 0.0 = black, 0.25 is normal, 0.5 is bright
+        PickRandom(0.2f); // 0.0 = black, 0.25 is normal, 0.5 is bright
     }
 }
